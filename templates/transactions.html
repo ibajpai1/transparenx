@@ -1,0 +1,181 @@
+{% include 'shared_styles.html' %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TransparenX - Transaction History</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <div class="header">
+        <div>
+            <h1 class="title">
+                <svg class="title-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Center circle -->
+                    <circle cx="50" cy="50" r="8" class="icon-dark"/>
+                    <!-- Outer circles -->
+                    <circle cx="20" cy="20" r="8" class="icon-dark"/>
+                    <circle cx="80" cy="20" r="8" class="icon-primary"/>
+                    <circle cx="20" cy="80" r="8" class="icon-primary"/>
+                    <circle cx="80" cy="80" r="8" class="icon-dark"/>
+                    <!-- Connection lines -->
+                    <line x1="28" y1="28" x2="42" y2="42" stroke="var(--text-primary)" stroke-width="4"/>
+                    <line x1="72" y1="28" x2="58" y2="42" stroke="var(--text-primary)" stroke-width="4"/>
+                    <line x1="28" y1="72" x2="42" y2="58" stroke="var(--text-primary)" stroke-width="4"/>
+                    <line x1="72" y1="72" x2="58" y2="58" stroke="var(--text-primary)" stroke-width="4"/>
+                    <!-- Diamond shapes -->
+                    <rect x="35" y="20" width="30" height="30" transform="rotate(45 50 35)" class="icon-dark"/>
+                    <rect x="35" y="50" width="30" height="30" transform="rotate(45 50 65)" class="icon-dark"/>
+                </svg>
+                TransparenX
+            </h1>
+            <p class="subtitle">Accountability and Transparency</p>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/department-tracking" class="nav-link">Visualization</a>
+            <a href="/transactions" class="nav-link active">Transactions</a>
+            <a href="/admin" class="nav-link">Admin</a>
+        </div>
+    </div>
+
+    <div class="page-container">
+
+
+        <!-- Wallet Selection -->
+        <div class="form-card">
+            <h2 class="form-title">Select Wallet</h2>
+            <div class="flex gap-4">
+                <select id="walletSelect" class="form-input">
+                    <option value="">All Wallets</option>
+                </select>
+                <button onclick="loadTransactions()" class="button">
+                    View Transactions
+                </button>
+            </div>
+        </div>
+
+        <!-- Wallet Info -->
+        <div id="walletInfo" class="form-card hidden">
+            <h2 class="form-title">Wallet Details</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-sm text-gray-600">Address:</p>
+                    <p id="walletAddress" class="font-mono text-sm break-all"></p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-600">Balance:</p>
+                    <p id="walletBalance" class="font-medium"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction History -->
+        <div class="form-card">
+            <h2 class="form-title">Transaction History</h2>
+            <div id="transactionHistory" class="space-y-4">
+                <!-- Transactions will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const departments = [
+            { id: 'tax_pool', name: 'Tax Pool' },
+            { id: 'government', name: 'Government Wallet' },
+            { id: 'dept_transport', name: 'Department of Transport' },
+            { id: 'dept_labor', name: 'Department of Labor' },
+            { id: 'dept_education', name: 'Department of Education' },
+            { id: 'penn_dept_transport', name: 'Pennsylvania State Department of Transport' },
+            { id: 'penn_dept_labor', name: 'Pennsylvania State Department of Labor' },
+            { id: 'penn_dept_education', name: 'Pennsylvania State Department of Education'},
+            { id: 'pitt_dept_transport', name: 'Pittsburgh City Department of Transport' },
+            { id: 'pitt_dept_labor', name: 'Pittsburgh City Department of Labor' },
+            { id: 'pitt_dept_education', name: 'Pittsburgh City Department of Education'},
+            { id: 'squirrel_hill_dept_transport', name: 'Squirrel Hill Department of Transport' },
+        ];
+
+        // Populate wallet select dropdown
+        function populateWalletSelect() {
+            const select = document.getElementById('walletSelect');
+            departments.forEach(dept => {
+                select.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
+            });
+        }
+
+        // Initialize dropdown
+        populateWalletSelect();
+
+        async function loadTransactions() {
+            const walletId = document.getElementById('walletSelect').value;
+            const url = walletId ? `/api/transactions/${walletId}` : '/api/transactions';
+            
+            console.log('Fetching transactions from:', url);
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                console.log('Response data:', data);
+                
+                if (data.success) {
+                    // Update wallet info if specific wallet selected
+                    const walletInfo = document.getElementById('walletInfo');
+                    if (walletId) {
+                        document.getElementById('walletAddress').textContent = data.wallet_address || 'N/A';
+                        document.getElementById('walletBalance').textContent = `${data.wallet_balance || 0} XRP`;
+                        walletInfo.classList.remove('hidden');
+                    } else {
+                        walletInfo.classList.add('hidden');
+                    }
+
+                    // Update transaction history
+                    const historyDiv = document.getElementById('transactionHistory');
+                    historyDiv.innerHTML = ''; // Clear existing entries
+                    
+                    if (!data.transactions || data.transactions.length === 0) {
+                        historyDiv.innerHTML = '<p class="text-gray-500">No transactions found</p>';
+                        return;
+                    }
+                    
+                    data.transactions.forEach(tx => {
+                        const txElement = document.createElement('div');
+                        txElement.className = `p-4 rounded-md ${tx.success ? 'bg-gray-50' : 'bg-red-50'} border`;
+                        
+                        txElement.innerHTML = `
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-medium">${tx.type}</p>
+                                    <p class="text-sm text-gray-600">From: ${tx.sender}</p>
+                                    <p class="text-sm text-gray-600">To: ${tx.receiver}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="font-medium">${tx.amount_xrp} XRP</p>
+                                    <p class="text-xs text-gray-500">${new Date(tx.timestamp * 1000).toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2">TX Hash: ${tx.tx_hash}</p>
+                        `;
+                        
+                        historyDiv.appendChild(txElement);
+                    });
+                } else {
+                    console.error('Error in response:', data.error);
+                    const historyDiv = document.getElementById('transactionHistory');
+                    historyDiv.innerHTML = `<p class="text-red-500">Error: ${data.error}</p>`;
+                }
+            } catch (error) {
+                console.error('Error loading transactions:', error);
+                const historyDiv = document.getElementById('transactionHistory');
+                historyDiv.innerHTML = `<p class="text-red-500">Error loading transactions: ${error.message}</p>`;
+            }
+        }
+
+        // Load transactions on page load and every 30 seconds
+        loadTransactions();
+        setInterval(loadTransactions, 30000);
+    </script>
+</body>
+</html> 

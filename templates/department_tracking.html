@@ -1,0 +1,481 @@
+{% include 'shared_styles.html' %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TransparenX - Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* Add gradient definitions */
+        <defs>
+            <radialGradient id="nodeGradient">
+                <stop offset="0%" stop-color="var(--primary-light)"/>
+                <stop offset="100%" stop-color="var(--primary)"/>
+            </radialGradient>
+        </defs>
+
+        .node circle {
+            fill: url(#nodeGradient);
+            stroke: var(--primary);
+            stroke-width: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .node:hover circle {
+            r: 30;  /* Increase radius on hover */
+            stroke-width: 8px;
+            filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.5));
+        }
+
+        .node text {
+            font: 20px sans-serif;
+            fill: var(--text-primary);
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .node:hover text {
+            font-size: 22px;  /* Increase text size on hover */
+        }
+
+        .link {
+            fill: none;
+            stroke: var(--text-primary);
+            stroke-width: 3px;
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .link:hover {
+            stroke: #1a202c;
+            stroke-width: 4px;
+        }
+
+        .arrow {
+            fill: #a003f5;
+            opacity: 0.6;
+        }
+
+        .transaction-amount {
+            font-size: 14px;
+            fill: #2d3748;
+            pointer-events: none;
+        }
+
+        .balance-info {
+            font: 16px sans-serif;
+            fill: #4a5568;
+            opacity: 0;  /* Hide balance by default */
+            transition: all 0.3s ease;
+        }
+
+        .node:hover .balance-info {
+            opacity: 1;  /* Show balance on hover */
+            font-size: 18px;
+        }
+
+        .tooltip {
+            position: absolute;
+            padding: 12px;
+            background: rgba(30, 58, 138, 0.9);
+            color: white;
+            border-radius: 8px;
+            font-size: 14px;
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Add to existing styles */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 1rem 2rem;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e40af;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #6b7280;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .refresh-button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .refresh-button:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .refresh-button svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Adjust tree container to account for header */
+        #tree-container {
+            padding-top: 80px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="header">
+        <div>
+            <h1 class="title">
+                <svg class="title-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Center circle -->
+                    <circle cx="50" cy="50" r="8" class="icon-dark"/>
+                    <!-- Outer circles -->
+                    <circle cx="20" cy="20" r="8" class="icon-dark"/>
+                    <circle cx="80" cy="20" r="8" class="icon-primary"/>
+                    <circle cx="20" cy="80" r="8" class="icon-primary"/>
+                    <circle cx="80" cy="80" r="8" class="icon-dark"/>
+                    <!-- Connection lines -->
+                    <line x1="28" y1="28" x2="42" y2="42" stroke="var(--text-primary)" stroke-width="4"/>
+                    <line x1="72" y1="28" x2="58" y2="42" stroke="var(--text-primary)" stroke-width="4"/>
+                    <line x1="28" y1="72" x2="42" y2="58" stroke="var(--text-primary)" stroke-width="4"/>
+                    <line x1="72" y1="72" x2="58" y2="58" stroke="var(--text-primary)" stroke-width="4"/>
+                    <!-- Diamond shapes -->
+                    <rect x="35" y="20" width="30" height="30" transform="rotate(45 50 35)" class="icon-dark"/>
+                    <rect x="35" y="50" width="30" height="30" transform="rotate(45 50 65)" class="icon-dark"/>
+                </svg>
+                TransparenX
+            </h1>
+            <p class="subtitle">Accountability and Transparency</p>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/department-tracking" class="nav-link active">Visualization</a>
+            <a href="/transactions" class="nav-link">Transactions</a>
+            <a href="/admin" class="nav-link">Admin</a>
+        </div>
+    </div>
+    <div id="tree-container" style="width: 100vw; height: 100vh;"></div>
+
+    <script>
+        async function loadTransactionTree() {
+            try {
+                const response = await fetch('/api/transaction-tree');
+                const data = await response.json();
+                if (data.success) {
+                    renderTree(data.data);
+                } else {
+                    console.error('Error loading data:', data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function renderTree(data) {
+            // Debug logs
+            console.log("Received data:", data);
+            console.log("Root children:", data.root.children);
+
+            // Clear existing content
+            d3.select("#tree-container").html("");
+
+            const margin = {top: 50, right: 100, bottom: 50, left: 100};  // Reduced margins
+            const width = window.innerWidth - margin.left - margin.right;
+            const height = window.innerHeight - margin.top - margin.bottom;
+
+            console.log("SVG dimensions:", { width, height });
+
+            // Create SVG with background color for visibility
+            const svg = d3.select("#tree-container")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .style("background-color", "#f8fafc")  // Lighter background
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // Create tooltip
+            const tooltip = d3.select("body").append("div")
+                .attr("class", "tooltip")
+                .style("opacity", 0);
+
+            // Add the gradient definition to SVG
+            const gradient = svg.append("defs")
+                .append("radialGradient")
+                .attr("id", "nodeGradient");
+
+            gradient.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", "var(--primary-light)");
+
+            gradient.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", "var(--primary)");
+
+            // Assign levels to nodes
+            data.root.children.forEach(node => {
+                console.log("Processing node:", node);
+                if (node.id === 'tax_pool') {
+                    node.level = 0;
+                } else if (node.id === 'government') {
+                    node.level = 1;
+                } else if (node.id.startsWith('penn_')) {
+                    node.level = 3;
+                } else if (node.id.startsWith('pitt_')) {
+                    node.level = 4;
+                } else if (node.id.startsWith('squirrel_')) {
+                    node.level = 5;
+                } else if (node.id === 'exit_pool') {
+                    node.level = 6;
+                } else if (node.id.startsWith('dept')){
+                    node.level = 2; // Any other nodes
+                }
+                else
+                {
+                    node.level = 7;
+                }
+            });
+
+            // Sort nodes by level
+            data.root.children.sort((a, b) => a.level - b.level);
+
+            // Create hierarchy
+            const root = d3.hierarchy(data.root);
+            console.log("Hierarchy created:", root);
+
+            // Custom positioning with debug logs
+            root.descendants().forEach(d => {
+                if (d.depth === 0) {
+                    // Root node (Transaction System)
+                    d.y = 50;
+                    d.x = height / 2;
+                } else {
+                    const node = d.data;
+                    d.y = 150 + (node.level * 180);  // Keep horizontal spacing
+                    
+                    if (node.id === 'tax_pool') {
+                        d.x = height * 0.2;  // Moved up
+                    } else if (node.id === 'government') {
+                        d.x = height * 0.35;  // More space between tax_pool and gov
+                    } else if (node.id === 'exit_pool') {
+                        d.x = height * 0.8;  // Moved further down
+                    } else if (node.id.startsWith('penn_')) {
+                        const pennDepts = data.root.children.filter(n => n.id.startsWith('penn_'));
+                        const index = pennDepts.findIndex(n => n.id === node.id);
+                        d.x = height * 0.45 + (index * 80);  // Start lower
+                    } else if (node.id.startsWith('pitt_')) {
+                        const pittDepts = data.root.children.filter(n => n.id.startsWith('pitt_'));
+                        const index = pittDepts.findIndex(n => n.id === node.id);
+                        d.x = height * 0.65 + (index * 80);  // More space after Penn depts
+                    } else if (node.id.startsWith('dept_')) {
+                        // Handle regular departments
+                        const regularDepts = data.root.children.filter(n => n.id.startsWith('dept_'));
+                        const index = regularDepts.findIndex(n => n.id === node.id);
+                        d.x = height * 0.25 + (index * 80);  // Position between tax_pool and Penn depts
+                    } else if (node.id.startsWith('squirrel_')) {
+                        const squirrelDepts = data.root.children.filter(n => n.id.startsWith('squirrel_'));
+                        const index = squirrelDepts.findIndex(n => n.id === node.id);
+                        d.x = height * 0.75 + (index * 80);  // Position between Pitt and exit_pool
+                    } else {
+                        d.x = height / 2;  // Fallback position
+                    }
+                }
+                console.log(`Node ${d.data.name} positioned at:`, { x: d.x, y: d.y });
+            });
+
+            // Process links
+            const links = data.links;
+            console.log("Processing links:", links);
+            console.log("Links data:", links);
+
+            // Add paths for transactions
+            const link = svg.selectAll(".link")
+                .data(links)
+                .enter()
+                .append("path")
+                .attr("class", "link")
+                .attr("d", d => {
+                    const sourceNode = root.descendants().find(n => n.data.id === d.source);
+                    const targetNode = root.descendants().find(n => n.data.id === d.target);
+                    console.log("Source node:", sourceNode);
+                    console.log("Target node:", targetNode);
+                    if (sourceNode && targetNode) {
+                        console.log(`Drawing link from ${d.source} to ${d.target}`);
+                        return `M ${sourceNode.y} ${sourceNode.x}
+                                Q ${(sourceNode.y + targetNode.y)/2} ${(sourceNode.x + targetNode.x)/2}
+                                ${targetNode.y} ${targetNode.x}`;
+                    }
+                    console.log("Failed to draw link - missing nodes");
+                    return "";
+                })
+                .style("stroke", "#4a5568")
+                .style("stroke-width", "2px")
+                .style("fill", "none")
+                .style("opacity", 0.8);
+
+            console.log("Created links:", link.nodes().length);
+
+            // Add transaction amounts
+            svg.selectAll(".transaction-amount")
+                .data(links)
+                .enter()
+                .append("text")
+                .attr("class", "transaction-amount")
+                .attr("x", d => {
+                    const sourceNode = root.descendants().find(n => n.data.id === d.source);
+                    const targetNode = root.descendants().find(n => n.data.id === d.target);
+                    return (sourceNode.y + targetNode.y) / 2;
+                })
+                .attr("y", d => {
+                    const sourceNode = root.descendants().find(n => n.data.id === d.source);
+                    const targetNode = root.descendants().find(n => n.data.id === d.target);
+                    return (sourceNode.x + targetNode.x) / 2;
+                })
+                .attr("dy", -5)
+                .style("text-anchor", "middle")
+                .style("font-size", "12px")
+                .style("fill", "#4a5568")
+                .text(d => `${d.value.toFixed(2)} XRP`);
+
+            // Add hover effect
+            link.on("mouseover", (event, d) => {
+                d3.select(event.target)
+                    .style("stroke", "#2d3748")
+                    .style("stroke-width", "3px")
+                    .style("opacity", 1);
+
+                tooltip.transition()
+                    .duration(200)
+                    .style("opacity", .9);
+                tooltip.html(`
+                    <div>
+                        <strong>From: ${d.source}</strong><br/>
+                        <strong>To: ${d.target}</strong><br/>
+                        <strong>Amount: ${d.value.toFixed(2)} XRP</strong><br/>
+                        <strong>Time: ${new Date(d.timestamp * 1000).toLocaleString()}</strong>
+                    </div>
+                `)
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 28) + "px");
+            })
+            .on("mouseout", (event) => {
+                d3.select(event.target)
+                    .style("stroke", "#4a5568")
+                    .style("stroke-width", "2px")
+                    .style("opacity", 0.6);
+                    
+                tooltip.transition()
+                    .duration(500)
+                    .style("opacity", 0);
+            });
+
+            // Add nodes with debug logs
+            const nodes = root.descendants();
+            console.log("Nodes to render:", nodes);
+
+            const node = svg.selectAll(".node")
+                .data(nodes)
+                .enter()
+                .append("g")
+                .attr("class", "node")
+                .attr("transform", d => {
+                    console.log(`Transforming node ${d.data.name} to:`, { x: d.x, y: d.y });
+                    return `translate(${d.y},${d.x})`;
+                });
+
+            // Update circle creation
+            node.append("circle")
+                .attr("r", 20)
+                .style("fill", "url(#nodeGradient)")
+                .style("stroke", "#0a61f7")
+                .style("stroke-width", "6px")
+                .on("mouseover", (event, d) => {
+                    d3.select(event.currentTarget)
+                        .transition()
+                        .duration(300)
+                        .attr("r", 30);
+                        
+                    // Show detailed tooltip
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+                    tooltip.html(`
+                        <div style="text-align: center;">
+                            <strong style="font-size: 16px;">${d.data.name}</strong><br/>
+                            <span style="color: #93c5fd;">Current Balance:</span><br/>
+                            <strong style="font-size: 18px;">${d.data.balance.toFixed(2)} XRP</strong><br/>
+                            <span style="color: #93c5fd;">Total Sent:</span><br/>
+                            <strong>${d.data.totalSent.toFixed(2)} XRP</strong><br/>
+                            <span style="color: #93c5fd;">Total Received:</span><br/>
+                            <strong>${d.data.totalReceived.toFixed(2)} XRP</strong>
+                        </div>
+                    `)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", (event) => {
+                    d3.select(event.currentTarget)
+                        .transition()
+                        .duration(300)
+                        .attr("r", 20);
+                        
+                    tooltip.transition()
+                        .duration(500)
+                        .style("opacity", 0);
+                });
+
+            // Update text labels
+            node.append("text")
+                .attr("dy", "-2.2em")
+                .attr("x", 0)
+                .style("text-anchor", "middle")
+                .style("font-size", "13px")
+                .style("font-weight", "bold")
+                .text(d => d.data.name)
+                .style("pointer-events", "none");
+
+            // Update balance info
+            node.append("text")
+                .attr("class", "balance-info")
+                .attr("dy", "1.8em")
+                .attr("x", 0)
+                .style("text-anchor", "middle")
+                .style("font-size", "10px")
+                .style("pointer-events", "none")
+                .text(d => `${d.data.balance.toFixed(2)} XRP`);
+        }
+
+        // Load the tree when the page loads
+        loadTransactionTree();
+        
+        // Refresh every 30 seconds
+        setInterval(loadTransactionTree, 30000);
+    </script>
+</body>
+</html> 
